@@ -1,3 +1,28 @@
-#archivos
-*.pdf
-README.md
+# Bytecode / cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Entornos virtuales
+venv/
+.venv/
+env/
+
+# Tests, no van al repo final
+tests/
+test/
+
+# Resultados crudos del benchmark
+resultados/raw/
+
+# Editor
+.vscode/
+.idea/
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Otros
+*.log
+.pytest_cache/

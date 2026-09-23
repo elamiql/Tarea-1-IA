@@ -172,7 +172,7 @@ def simular(algoritmo, grid, spawns, salida, origenes_fuego, max_turnos, k_fuego
     if turnos_validos:
         turnos_ultimo = max(turnos_validos)
     else:
-        turnos_ultimo = max_turnos
+        turnos_ultimo = None
 
     cantidad_vivos_no_evacuados = sum(
         1

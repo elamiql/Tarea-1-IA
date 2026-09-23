@@ -1,16 +1,29 @@
 import csv
 import time
+
 import numpy as np
 
 from src.mapas.map_generator import generar_mapa
 from src.simulacion.entorno import simular
-from src.simulacion.fuego import calcular_fuego_por_turno
+from src.simulacion.fuego import calcular_fuego_por_turno, calcular_turno_quema_salida
 from src.algoritmos.no_informada.bfs import BFS
 from src.algoritmos.no_informada.dfs import DFS
 from src.algoritmos.informada.a_star import A_star
 from src.algoritmos.informada.greedy_best_first import greedy_best_first
 from src.algoritmos.metaheuristico.genetico import algoritmo_genetico
 
+# Configuracion oficial de los experimentos
+ANCHO_MAPA = 50
+ALTO_MAPA = 50
+N_AGENTES = 20
+
+K_FUEGO = 5
+
+GENERACIONES_GENETICO = 100
+TAM_POBLACION_GENETICO = 40
+PROB_MUTACION_GENETICO = 0.02
+
+N_ITERACIONES_BENCHMARK = 100
 
 ALGORITMOS_PATHFINDING = [
     ("BFS", BFS, False),
@@ -38,7 +51,10 @@ def elegir_origen_fuego(grid, salida, rng):
     if not libres:
         raise ValueError("No existen celdas libres para colocar fuego")
 
-    libres.sort(key=lambda c: abs(c[0] - salida[0]) + abs(c[1] - salida[1]), reverse=True)
+    libres.sort(
+        key=lambda c: abs(c[0] - salida[0]) + abs(c[1] - salida[1]),
+        reverse=True
+    )
 
     cantidad_top = max(1, len(libres) // 3)
     top = libres[:cantidad_top]
@@ -46,10 +62,17 @@ def elegir_origen_fuego(grid, salida, rng):
     return top[int(rng.integers(len(top)))]
 
 
-def correr_una_iteracion(tipo_mapa, nombre_algo, seed, ancho=50, alto=50, n_spawns=20,
-                          max_turnos=150, k_fuego=5, largo_genetico=None,
-                          generaciones_genetico=100, tam_poblacion_genetico=40,
-                          prob_mutacion_genetico=0.02):
+def correr_una_iteracion(
+    tipo_mapa,
+    nombre_algo,
+    seed,
+    ancho=ANCHO_MAPA,
+    alto=ALTO_MAPA,
+    n_spawns=N_AGENTES,
+    k_fuego=K_FUEGO,
+    generaciones_genetico=GENERACIONES_GENETICO,
+    tam_poblacion_genetico=TAM_POBLACION_GENETICO,
+    prob_mutacion_genetico=PROB_MUTACION_GENETICO):
 
     rng = np.random.default_rng(seed)
 
@@ -63,20 +86,39 @@ def correr_una_iteracion(tipo_mapa, nombre_algo, seed, ancho=50, alto=50, n_spaw
 
     origen_fuego = elegir_origen_fuego(grid, salida, rng)
 
+    turno_quema_salida = calcular_turno_quema_salida(
+        grid,
+        [origen_fuego],
+        salida,
+        k_fuego
+    )
+
+    if turno_quema_salida is None:
+        raise RuntimeError(
+            f"El fuego no puede alcanzar la salida en "
+            f"mapa={tipo_mapa}, seed={seed}"
+        )
+
+    # +1 porque range(max_turnos) no incluye el extremo.
+    # Si la salida se quema en t=185, necesitamos simular 0..185.
+    max_turnos = turno_quema_salida + 1
+
     inicio_algoritmo = time.perf_counter()
 
     if nombre_algo == "Genetico":
-        if largo_genetico is None:
-            largo_genetico = max_turnos
-
-        fuego_por_turno = calcular_fuego_por_turno(grid, [origen_fuego], largo_genetico, k_fuego)
+        fuego_por_turno = calcular_fuego_por_turno(
+            grid,
+            [origen_fuego],
+            max_turnos,
+            k_fuego
+        )
 
         _, resultado = algoritmo_genetico(
             grid,
             spawns,
             salida,
             fuego_por_turno,
-            largo=largo_genetico,
+            largo=max_turnos,
             generaciones=generaciones_genetico,
             tam_poblacion=tam_poblacion_genetico,
             prob_mutacion=prob_mutacion_genetico,
@@ -110,6 +152,7 @@ def correr_una_iteracion(tipo_mapa, nombre_algo, seed, ancho=50, alto=50, n_spaw
         "ancho": ancho,
         "alto": alto,
         "n_spawns": n_spawns,
+        "turno_quema_salida": turno_quema_salida,
         "max_turnos": max_turnos,
         "evacuados": resultado["evacuados"],
         "muertos": resultado["muertos"],
@@ -119,8 +162,7 @@ def correr_una_iteracion(tipo_mapa, nombre_algo, seed, ancho=50, alto=50, n_spaw
         "tiempo_algoritmo_seg": tiempo_algoritmo,
     }
 
-
-def correr_benchmark(n_iteraciones=100, **kwargs):
+def correr_benchmark(n_iteraciones=N_ITERACIONES_BENCHMARK, **kwargs):
     nombres_algoritmos = [nombre for nombre, _, _ in ALGORITMOS_PATHFINDING]
     nombres_algoritmos.append("Genetico")
 
@@ -136,7 +178,12 @@ def correr_benchmark(n_iteraciones=100, **kwargs):
 
                 inicio_total = time.perf_counter()
 
-                resultado = correr_una_iteracion(tipo_mapa, nombre_algo, seed=i, **kwargs)
+                resultado = correr_una_iteracion(
+                    tipo_mapa,
+                    nombre_algo,
+                    seed=i,
+                    **kwargs
+                )
 
                 tiempo_total = time.perf_counter() - inicio_total
 
@@ -151,6 +198,7 @@ def correr_benchmark(n_iteraciones=100, **kwargs):
                     f"evacuados={resultado['evacuados']}/{resultado['n_agentes']} "
                     f"muertos={resultado['muertos']} "
                     f"turnos={resultado['turnos_ultimo']} "
+                    f"quema_salida={resultado['turno_quema_salida']} "
                     f"congestion={resultado['costo_congestion']:.1f} "
                     f"alg={resultado['tiempo_algoritmo_seg']:.2f}s "
                     f"total={resultado['tiempo_total_seg']:.2f}s"
@@ -178,7 +226,11 @@ def probar_genetico_seeds(seeds=None):
         for seed in seeds:
             contador += 1
 
-            resultado = correr_una_iteracion(tipo_mapa, "Genetico", seed)
+            resultado = correr_una_iteracion(
+                tipo_mapa,
+                "Genetico",
+                seed
+            )
 
             resultados.append(resultado)
 
@@ -188,6 +240,7 @@ def probar_genetico_seeds(seeds=None):
                 f"evacuados={resultado['evacuados']}/{resultado['n_agentes']} "
                 f"muertos={resultado['muertos']} "
                 f"turnos={resultado['turnos_ultimo']} "
+                f"quema_salida={resultado['turno_quema_salida']} "
                 f"congestion={resultado['costo_congestion']:.1f} "
                 f"tiempo={resultado['tiempo_algoritmo_seg']:.2f}s"
             )
@@ -197,23 +250,61 @@ def probar_genetico_seeds(seeds=None):
     print("=== RESUMEN ===")
 
     for tipo_mapa in TIPOS_MAPA:
-        datos = [resultado for resultado in resultados if resultado["mapa"] == tipo_mapa]
+        datos = [
+            resultado
+            for resultado in resultados
+            if resultado["mapa"] == tipo_mapa
+        ]
 
-        promedio_evacuados = sum(resultado["evacuados"] for resultado in datos) / len(datos)
-        promedio_muertos = sum(resultado["muertos"] for resultado in datos) / len(datos)
-        promedio_turnos = sum(resultado["turnos_ultimo"] for resultado in datos) / len(datos)
-        promedio_congestion = sum(resultado["costo_congestion"] for resultado in datos) / len(datos)
-        promedio_tiempo = sum(resultado["tiempo_algoritmo_seg"] for resultado in datos) / len(datos)
+        promedio_evacuados = sum(
+            resultado["evacuados"]
+            for resultado in datos
+        ) / len(datos)
 
-        minimo_evacuados = min(resultado["evacuados"] for resultado in datos)
-        maximo_evacuados = max(resultado["evacuados"] for resultado in datos)
+        promedio_muertos = sum(
+            resultado["muertos"]
+            for resultado in datos
+        ) / len(datos)
+
+        turnos_validos = [
+            resultado["turnos_ultimo"]
+            for resultado in datos
+            if resultado["turnos_ultimo"] is not None
+        ]
+
+        if turnos_validos:
+            promedio_turnos = sum(turnos_validos) / len(turnos_validos)
+            texto_turnos = f"{promedio_turnos:.2f}"
+        else:
+            promedio_turnos = None
+            texto_turnos = "N/A"
+
+        promedio_congestion = sum(
+            resultado["costo_congestion"]
+            for resultado in datos
+        ) / len(datos)
+
+        promedio_tiempo = sum(
+            resultado["tiempo_algoritmo_seg"]
+            for resultado in datos
+        ) / len(datos)
+
+        minimo_evacuados = min(
+            resultado["evacuados"]
+            for resultado in datos
+        )
+
+        maximo_evacuados = max(
+            resultado["evacuados"]
+            for resultado in datos
+        )
 
         print(
             f"{tipo_mapa:15s} "
             f"evacuados={promedio_evacuados:.2f}/20 "
             f"rango=[{minimo_evacuados}, {maximo_evacuados}] "
             f"muertos={promedio_muertos:.2f} "
-            f"turnos={promedio_turnos:.2f} "
+            f"turnos={texto_turnos} "
             f"congestion={promedio_congestion:.2f} "
             f"tiempo={promedio_tiempo:.2f}s"
         )
@@ -226,7 +317,10 @@ def guardar_csv(resultados, path):
         return
 
     with open(path, "w", newline="") as archivo:
-        writer = csv.DictWriter(archivo, fieldnames=resultados[0].keys())
+        writer = csv.DictWriter(
+            archivo,
+            fieldnames=resultados[0].keys()
+        )
         writer.writeheader()
         writer.writerows(resultados)
 

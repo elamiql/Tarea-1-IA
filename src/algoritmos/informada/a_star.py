@@ -2,7 +2,7 @@ import heapq
 from ..utils import reconstruir_camino, vecinos_validos
 from ..heuristicas import manhattan
 
-def A_estrella(grid, inicio, fin, costo_fn=None):
+def A_star(grid, inicio, fin, costo_fn=None):
     if costo_fn is None:
         costo_fn = lambda actual, vecino: 1  # costo parejo por defecto
 

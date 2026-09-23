@@ -1,8 +1,6 @@
-from src.mapas.map_generator import PARAMS_TIPO, generar_mapa, mostrar_mapa
+from src.benchmark.runner import correr_benchmark, guardar_csv
+
 
 if __name__ == "__main__":
-    for tipo in PARAMS_TIPO:
-        grid, salida, spawns = generar_mapa(tipo, ancho=50, alto=50, seed=42)
-        mostrar_mapa(grid, salida, spawns, titulo=tipo)
-
-print(type(grid), grid.shape)
+    resultados = correr_benchmark(n_iteraciones=1)
+    guardar_csv(resultados, "resultados/raw/prueba.csv")

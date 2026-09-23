@@ -2,19 +2,20 @@ from collections import deque
 from ..utils import vecinos_validos, reconstruir_camino
 
 def BFS(grid, inicio, fin):
-    queue = [inicio]
+    queue = deque([inicio])
     visitados = {inicio}
     padre = {}
 
     while queue:
-        s = queue.pop(0)
+        actual = queue.popleft()
 
-        if s == fin:
+        if actual == fin:
             return reconstruir_camino(padre, fin)
 
-        for vecino in vecinos_validos(grid, s):
+        for vecino in vecinos_validos(grid, actual):
             if vecino not in visitados:
                 visitados.add(vecino)
-                padre[vecino] = s
+                padre[vecino] = actual
                 queue.append(vecino)
+
     return None

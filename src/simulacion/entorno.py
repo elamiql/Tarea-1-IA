@@ -16,41 +16,73 @@ class Agente:
 
 
 def combinar_obstaculos(grid, quemado):
-    """Grid 'efectivo' para planificar: muros originales + celdas quemadas."""
+    """Grid efectivo para planificar: muros originales + celdas quemadas."""
     grid_efectivo = grid.copy()
-    for (x, y) in quemado:
+
+    for x, y in quemado:
         grid_efectivo[y, x] = 1
+
     return grid_efectivo
 
 
 def camino_bloqueado(camino, idx, quemado):
-    """¿El resto del camino desde idx en adelante pasa por una celda quemada?"""
+    """Indica si el resto del camino pasa por una celda quemada."""
+    if camino is None:
+        return True
+
     return any(celda in quemado for celda in camino[idx:])
 
 
 def costo_fn_congestion(ocupacion_previa, factor=5.0):
     """
-    Costo extra para A* al moverse a una celda que estuvo congestionada el
-    turno anterior (estimación — la ocupación real de ESTE turno todavía
-    no existe cuando A* está planificando).
+    Costo extra para A* al moverse a una celda que estuvo congestionada
+    el turno anterior.
     """
+
     def costo(actual, vecino):
         return 1 + factor * ocupacion_previa.get(vecino, 0)
+
     return costo
 
 
 def simular(algoritmo, grid, spawns, salida, origenes_fuego, max_turnos, k_fuego,
             tipo_congestion="cuadratico", factor_congestion=1.0, usa_costo_fn=False):
     """
-    Corre la evacuación completa para UN algoritmo de pathfinding
-    (bfs, dfs, a_star o greedy_best_first), replanificando cuando el fuego
-    avanza o bloquea el camino actual de algún agente.
+    Corre la evacuación completa para un algoritmo de pathfinding
+    (BFS, DFS, A* o Greedy), replanificando cuando el fuego avanza
+    o bloquea el camino actual.
 
     algoritmo: función (grid, inicio, fin) -> camino
-               o (grid, inicio, fin, costo_fn) -> camino si usa_costo_fn=True (ej. A*)
+               o (grid, inicio, fin, costo_fn) -> camino si usa_costo_fn=True.
     """
+
+    if max_turnos <= 0:
+        raise ValueError("max_turnos debe ser mayor que 0.")
+
+    if k_fuego <= 0:
+        raise ValueError("k_fuego debe ser mayor que 0.")
+
+    alto, ancho = grid.shape
+
+    if not (0 <= salida[0] < ancho and 0 <= salida[1] < alto):
+        raise ValueError(f"Salida fuera del mapa: {salida}")
+
+    if grid[salida[1], salida[0]] != 0:
+        raise ValueError("La salida debe estar en una celda transitable.")
+
+    for spawn in spawns:
+        x, y = spawn
+
+        if not (0 <= x < ancho and 0 <= y < alto):
+            raise ValueError(f"Spawn fuera del mapa: {spawn}")
+
+        if grid[y, x] != 0:
+            raise ValueError(f"Spawn sobre un muro: {spawn}")
+
     fuego_por_turno = calcular_fuego_por_turno(grid, origenes_fuego, max_turnos, k_fuego)
+
     agentes = [Agente(i, pos) for i, pos in enumerate(spawns)]
+
     costo_congestion_total = 0.0
     ocupacion_previa = {}
 
@@ -58,18 +90,27 @@ def simular(algoritmo, grid, spawns, salida, origenes_fuego, max_turnos, k_fuego
         quemado = fuego_por_turno.get(t, set())
         fuego_recien_avanzo = (t > 0 and t % k_fuego == 0)
 
-        # el fuego mata ANTES de replanificar/moverse
+        # Si la única salida queda consumida por el fuego,
+        # todos los agentes que siguen dentro quedan atrapados.
+        if salida in quemado:
+            for agente in agentes:
+                if agente.vivo and not agente.evacuado:
+                    agente.vivo = False
+            break
+
+        # El fuego mata antes de replanificar o moverse.
         for agente in agentes:
             if agente.vivo and not agente.evacuado and agente.pos in quemado:
                 agente.vivo = False
 
-        vivos_activos = [a for a in agentes if a.vivo and not a.evacuado]
+        vivos_activos = [agente for agente in agentes if agente.vivo and not agente.evacuado]
+
         if not vivos_activos:
             break
 
         grid_efectivo = combinar_obstaculos(grid, quemado)
 
-        # replanifica solo quien lo necesita (no todos, todos los turnos)
+        # Replanifica solo quien lo necesita.
         for agente in vivos_activos:
             necesita_plan = (
                 agente.camino is None
@@ -77,48 +118,74 @@ def simular(algoritmo, grid, spawns, salida, origenes_fuego, max_turnos, k_fuego
                 or fuego_recien_avanzo
                 or camino_bloqueado(agente.camino, agente.idx, quemado)
             )
-            if necesita_plan:
-                if usa_costo_fn:
-                    nuevo_camino = algoritmo(grid_efectivo, agente.pos, salida,
-                                              costo_fn_congestion(ocupacion_previa))
-                else:
-                    nuevo_camino = algoritmo(grid_efectivo, agente.pos, salida)
 
-                agente.camino = nuevo_camino  # None si quedó sin ruta posible (atrapado)
-                agente.idx = 0
+            if not necesita_plan:
+                continue
 
-        # decide la siguiente posición de cada agente activo
+            if usa_costo_fn:
+                nuevo_camino = algoritmo(grid_efectivo, agente.pos, salida, costo_fn_congestion(ocupacion_previa))
+            else:
+                nuevo_camino = algoritmo(grid_efectivo, agente.pos, salida)
+
+            agente.camino = nuevo_camino
+            agente.idx = 0
+
+        # Decide la siguiente posición de cada agente activo.
         siguientes = {}
+
         for agente in vivos_activos:
             if agente.camino and agente.idx + 1 < len(agente.camino):
                 siguientes[agente.id] = agente.camino[agente.idx + 1]
             else:
-                siguientes[agente.id] = agente.pos  # esperar / atrapado / ya llegó
+                siguientes[agente.id] = agente.pos
 
+        # Calcula congestión del turno.
         ocupacion = {}
+
         for pos in siguientes.values():
             ocupacion[pos] = ocupacion.get(pos, 0) + 1
+
         costo_congestion_total += costo_congestion_turno(ocupacion, tipo_congestion, factor_congestion)
         ocupacion_previa = ocupacion
 
-        # aplica el movimiento
+        # Aplica movimiento.
         for agente in vivos_activos:
             nueva_pos = siguientes[agente.id]
+
             if nueva_pos != agente.pos:
                 agente.pos = nueva_pos
                 agente.idx += 1
+
             if agente.pos == salida:
                 agente.evacuado = True
                 agente.turno_evacuacion = t
 
-    evacuados = [a for a in agentes if a.evacuado]
-    sobrevivientes = len(evacuados)
-    turnos_validos = [a.turno_evacuacion for a in evacuados]
-    turnos_ultimo = max(turnos_validos) if turnos_validos else max_turnos
+    evacuados = [agente for agente in agentes if agente.evacuado]
+    cantidad_evacuados = len(evacuados)
 
-    return dict(
-        sobrevivientes=sobrevivientes,
-        n_agentes=len(agentes),
-        turnos_ultimo=turnos_ultimo,
-        costo_congestion=costo_congestion_total,
+    turnos_validos = [
+        agente.turno_evacuacion
+        for agente in evacuados
+        if agente.turno_evacuacion is not None
+    ]
+
+    if turnos_validos:
+        turnos_ultimo = max(turnos_validos)
+    else:
+        turnos_ultimo = max_turnos
+
+    cantidad_vivos_no_evacuados = sum(
+        1
+        for agente in agentes
+        if agente.vivo and not agente.evacuado
     )
+
+    cantidad_muertos = len(agentes) - cantidad_evacuados - cantidad_vivos_no_evacuados
+
+    return {
+        "evacuados": cantidad_evacuados,
+        "muertos": cantidad_muertos,
+        "n_agentes": len(agentes),
+        "turnos_ultimo": turnos_ultimo,
+        "costo_congestion": costo_congestion_total,
+    }

@@ -12,7 +12,23 @@ def calcular_fuego_por_turno(grid, origenes_fuego, max_turnos, k):
 
     Devuelve: dict {turno: set(celdas_quemadas_hasta_ese_turno)}
     """
+
+    if max_turnos <= 0:
+        raise ValueError("max_turnos debe ser mayor que 0")
+
+    if k <= 0:
+        raise ValueError("k debe ser mayor que 0")
+
+    
     alto, ancho = grid.shape
+
+    for x, y in origenes_fuego:
+        if not (0 <= x < ancho and 0 <= y < alto):
+            raise ValueError(f"Origen del fuego fuera del mapa: {(x, y)}")
+
+        if grid[y, x] != 0:
+            raise ValueError(f"El origen del fuego está sobre un muro: {(x, y)}")
+
     quemado = set(origenes_fuego)
     frontera = list(origenes_fuego)
     fuego_por_turno = {}

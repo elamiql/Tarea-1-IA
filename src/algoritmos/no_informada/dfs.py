@@ -1,4 +1,3 @@
-from collections import deque
 from ..utils import reconstruir_camino, vecinos_validos
 
 def DFS(grid, inicio, fin):

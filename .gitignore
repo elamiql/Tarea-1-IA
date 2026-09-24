@@ -1,28 +1,38 @@
-# Bytecode / cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 
 # Entornos virtuales
-venv/
 .venv/
+venv/
 env/
 
-# Tests, no van al repo final
-tests/
-test/
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Resultados crudos del benchmark
-resultados/raw/
-
-# Editor
+# IDE
 .vscode/
 .idea/
 
-# SO
+# Sistema operativo
 .DS_Store
 Thumbs.db
 
-# Otros
+# Tests locales
+tests/
+
+# Resultados generados por benchmarks
+resultados/
+graficos/
+
+# Benchmarks antiguos/de prueba en la raíz
+benchmark_prueba.csv
+smoke.csv
+smoke_resumen.csv
+
+# Temporales
+*.tmp
 *.log
-.pytest_cache/

@@ -11,6 +11,7 @@ from src.algoritmos.no_informada.dfs import DFS
 from src.algoritmos.informada.a_star import A_star
 from src.algoritmos.informada.greedy_best_first import greedy_best_first
 from src.algoritmos.metaheuristico.genetico import algoritmo_genetico
+from src.benchmark.csv_utils import cargar_claves_completadas, guardar_resultado_incremental
 
 # Configuracion oficial de los experimentos
 ANCHO_MAPA = 50
@@ -162,39 +163,54 @@ def correr_una_iteracion(
         "tiempo_algoritmo_seg": tiempo_algoritmo,
     }
 
-def correr_benchmark(n_iteraciones=N_ITERACIONES_BENCHMARK, **kwargs):
+def correr_benchmark(n_iteraciones=N_ITERACIONES_BENCHMARK, path_csv=None, **kwargs):
     nombres_algoritmos = [nombre for nombre, _, _ in ALGORITMOS_PATHFINDING]
     nombres_algoritmos.append("Genetico")
 
     resultados = []
+
+    if path_csv is not None:
+        completadas = cargar_claves_completadas(path_csv)
+    else:
+        completadas = set()
 
     total = len(TIPOS_MAPA) * len(nombres_algoritmos) * n_iteraciones
     contador = 0
 
     for tipo_mapa in TIPOS_MAPA:
         for nombre_algo in nombres_algoritmos:
-            for i in range(n_iteraciones):
+            for seed in range(n_iteraciones):
                 contador += 1
+                clave = (tipo_mapa, nombre_algo, seed)
+
+                if clave in completadas:
+                    print(
+                        f"[{contador}/{total}] "
+                        f"{tipo_mapa:15s} "
+                        f"{nombre_algo:8s} "
+                        f"seed={seed:3d} "
+                        f"YA COMPLETADO"
+                    )
+                    continue
 
                 inicio_total = time.perf_counter()
 
-                resultado = correr_una_iteracion(
-                    tipo_mapa,
-                    nombre_algo,
-                    seed=i,
-                    **kwargs
-                )
+                resultado = correr_una_iteracion(tipo_mapa, nombre_algo, seed=seed, **kwargs)
 
                 tiempo_total = time.perf_counter() - inicio_total
-
                 resultado["tiempo_total_seg"] = tiempo_total
+
                 resultados.append(resultado)
+
+                if path_csv is not None:
+                    guardar_resultado_incremental(resultado, path_csv)
+                    completadas.add(clave)
 
                 print(
                     f"[{contador}/{total}] "
                     f"{tipo_mapa:15s} "
                     f"{nombre_algo:8s} "
-                    f"seed={i:3d} "
+                    f"seed={seed:3d} "
                     f"evacuados={resultado['evacuados']}/{resultado['n_agentes']} "
                     f"muertos={resultado['muertos']} "
                     f"turnos={resultado['turnos_ultimo']} "
@@ -205,7 +221,6 @@ def correr_benchmark(n_iteraciones=N_ITERACIONES_BENCHMARK, **kwargs):
                 )
 
     return resultados
-
 
 def probar_genetico_seeds(seeds=None):
     if seeds is None:

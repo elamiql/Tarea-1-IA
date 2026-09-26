@@ -24,7 +24,7 @@ GENERACIONES_GENETICO = 100
 TAM_POBLACION_GENETICO = 40
 PROB_MUTACION_GENETICO = 0.02
 
-N_ITERACIONES_BENCHMARK = 100
+N_ITERACIONES_BENCHMARK = 120
 
 ALGORITMOS_PATHFINDING = [
     ("BFS", BFS, False),
@@ -316,7 +316,7 @@ def probar_genetico_seeds(seeds=None):
 
         print(
             f"{tipo_mapa:15s} "
-            f"evacuados={promedio_evacuados:.2f}/20 "
+            f"evacuados={promedio_evacuados:.2f}/{N_AGENTES} "
             f"rango=[{minimo_evacuados}, {maximo_evacuados}] "
             f"muertos={promedio_muertos:.2f} "
             f"turnos={texto_turnos} "

@@ -16,7 +16,7 @@ from src.benchmark.csv_utils import cargar_claves_completadas, guardar_resultado
 # Configuracion oficial de los experimentos
 ANCHO_MAPA = 50
 ALTO_MAPA = 50
-N_AGENTES = 20
+N_AGENTES = 45
 
 K_FUEGO = 5
 

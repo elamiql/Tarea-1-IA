@@ -24,15 +24,6 @@ Thumbs.db
 # Tests locales
 tests/
 
-# Resultados generados por benchmarks
-resultados/
-graficos/
-
-# Benchmarks antiguos/de prueba en la raíz
-benchmark_prueba.csv
-smoke.csv
-smoke_resumen.csv
-
 # Temporales
 *.tmp
 *.log

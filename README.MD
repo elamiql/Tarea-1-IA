@@ -179,6 +179,5 @@ Tarea-1-IA/
 ├── resultados/                     # Resultados crudos y resúmenes en formato CSV
 └── graficos/                       # Gráficos generados por el benchmark
 ```
-```
 
 La descripción teórica, las decisiones de modelado, la función de fitness y el análisis de resultados se encuentran en el informe de la tarea.
